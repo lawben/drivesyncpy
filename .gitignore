@@ -58,3 +58,6 @@ target/
 
 # Virtualenv
 venv/
+
+# Google API
+credentials.json
