@@ -8,7 +8,7 @@ INOTIFY_EVENT_MASK = pyinotify.IN_CREATE | pyinotify.IN_MODIFY | \
                      pyinotify.IN_MOVED_TO
 
 
-class SyncWatcher(pyinotify.ProcessEvent):
+class UpSyncWatcher(pyinotify.ProcessEvent):
     def my_init(self, watchManager):
         self._wm = watchManager
 
@@ -20,11 +20,10 @@ class SyncWatcher(pyinotify.ProcessEvent):
         if event.dir:
             print("Started watching {}".format(event.pathname))
             self._wm.add_watch(event.pathname, INOTIFY_EVENT_MASK)
+        print(self._wm.watches)
 
     def process_IN_DELETE(self, event):
         print("IN_DELETE {}".format(event))
-        if event.dir:
-            self._wm.del_watch(event.pathname)
 
     def process_IN_MOVED_FROM(self, event):
         print("MOVED FROM {}".format(event))
@@ -41,7 +40,7 @@ class SyncWatcher(pyinotify.ProcessEvent):
 
 def sync_drive(root_dir):
     wm = pyinotify.WatchManager()
-    event_handler = SyncWatcher(watchManager=wm)
+    event_handler = UpSyncWatcher(watchManager=wm)
     notifier = pyinotify.Notifier(wm, default_proc_fun=event_handler)
     wm.add_watch(root_dir, INOTIFY_EVENT_MASK)
     notifier.loop()
