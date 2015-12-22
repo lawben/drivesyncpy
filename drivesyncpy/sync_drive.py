@@ -17,14 +17,15 @@ class UpSyncWatcher(pyinotify.ProcessEvent):
 
     def process_IN_MODIFY(self, event):
         print("IN_MODIFY {}".format(event))
-        self._dc.upload_file(event.pathname)
+        # self._dc.upload_file(event.pathname)
 
     def process_IN_CREATE(self, event):
         print("IN_CREATE {}".format(event))
         if event.dir:
-            print("Started watching {}".format(event.pathname))
             self._wm.add_watch(event.pathname, INOTIFY_EVENT_MASK)
-        self._dc.upload_file(event.pathname)
+            self._dc.upload_dir(event.pathname)
+        else:
+            self._dc.upload_file(event.pathname)
 
     def process_IN_DELETE(self, event):
         print("IN_DELETE {}".format(event))

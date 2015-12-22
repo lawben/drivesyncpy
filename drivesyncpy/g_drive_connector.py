@@ -16,24 +16,29 @@ class GDriveConnector(DriveConnector):
         self._root = root
         self._paths = {}
         self._ids = {}
+        self._initialized = False
+        self._collect_ids('0B42oFDXxUu3aUlZmLVpZaGFOMms')
 
-    def upload_file(self, filepath):
-        file_obj = self.drive.CreateFile()
-        file_obj.SetContentFile(filepath)
+    def upload_file(self, file_path):
+        file_obj = self._create_new_file(file_path)
         file_obj.Upload()
 
-    def delete_file(self, filepath):
-        file_obj = self.drive.CreateFile({'id': self._paths[filepath]})
+    def delete_file(self, file_path):
+        file_obj = self.drive.CreateFile({'id': self._paths[file_path]})
         self._trash_file(file_obj)
 
-    def update_file(self, filepath):
+    def update_file(self, file_path):
         pass
 
-    def move_file(self, filepath):
+    def move_file(self, file_path):
         pass
 
     def download_file(self, file_id):
         pass
+
+    def upload_dir(self, dir_path):
+        file_obj = self._create_new_file(dir_path, is_dir=True)
+        file_obj.Upload()
 
     def _trash_file(self, file_obj, param=None):
         # Temporary workaround until delete is merged
@@ -54,6 +59,9 @@ class GDriveConnector(DriveConnector):
 
         self._cache_path_id(self.drive.CreateFile({'id': root_folder}))
         self._traverse_files(folders)
+        self._initialized = True
+        print("Collected {} files from {}".format(len(self._ids),
+                                                  self._ids[root_folder]))
 
     def _query_folder_children(self, query, folder_id):
         new_folders = []
@@ -74,12 +82,10 @@ class GDriveConnector(DriveConnector):
 
     def _join_parent_chain(self, file_obj):
         parent = file_obj['parents'][0]
-        if parent['isRoot']:
-            rel_path = file_obj['title']
-        else:
-            parent_id = parent['id']
-            rel_path = path.join(self._ids[parent_id], file_obj['title'])
-        return path.join(self._root, rel_path)
+        pre_path = self._root
+        if not parent['isRoot']:
+            pre_path = self._ids[parent['id']]
+        return path.join(pre_path, file_obj['title'])
 
     def _cache_path_id(self, file_obj):
         file_id = file_obj['id']
@@ -87,9 +93,19 @@ class GDriveConnector(DriveConnector):
         self._ids[file_id] = parent_chain
         self._paths[parent_chain] = file_id
 
+    def _get_parent_metadata(self, file_path):
+        parent_path = path.dirname(file_path)
+        parent = self._paths.get(parent_path, 'root')
+        return {"parents": [{"kind": "drive#fileLink", "id": parent}]}
 
-dc = GDriveConnector("foobar")
-# dc.get_files("hacks")
-dc._collect_ids('0B42oFDXxUu3aUlZmLVpZaGFOMms')
-print dc._ids
-print dc._paths
+    def _create_new_file(self, file_path, is_dir=False):
+        metadata = self._get_parent_metadata(file_path)
+        file_obj = self.drive.CreateFile(metadata)
+        file_obj['title'] = path.basename(file_path)
+
+        if is_dir:
+            file_obj['mimeType'] = DRIVE_FOLDER
+        else:
+            file_obj.SetContentFile(file_path)
+
+        return file_obj
