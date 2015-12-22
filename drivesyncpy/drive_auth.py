@@ -1,7 +1,9 @@
+from os import path
+
 from pydrive.auth import GoogleAuth
 
 
-SETTINGS_PATH = "oauth/settings.yaml"
+SETTINGS_PATH = path.join(path.dirname(__file__), "oauth/settings.yaml")
 
 
 def get_google_auth():
