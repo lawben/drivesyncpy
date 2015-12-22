@@ -6,11 +6,14 @@ from pydrive.drive import GoogleDrive
 from drive_connector import DriveConnector
 from drive_auth import get_google_auth
 
+DRIVE_FOLDER = "application/vnd.google-apps.folder"
+
 
 class GDriveConnector(DriveConnector):
-    def __init__(self):
+    def __init__(self, root):
         self.gauth = get_google_auth()
         self.drive = GoogleDrive(self.gauth)
+        self._root = root
         self._paths = {}
         self._ids = {}
 
@@ -56,7 +59,7 @@ class GDriveConnector(DriveConnector):
         new_folders = []
         for f in self.drive.ListFile({'q': query}).GetList():
             self._cache_path_id(f)
-            if f['mimeType'] == "application/vnd.google-apps.folder":
+            if f['mimeType'] == DRIVE_FOLDER:
                 new_folders.append(f['id'])
         return new_folders
 
@@ -72,10 +75,11 @@ class GDriveConnector(DriveConnector):
     def _join_parent_chain(self, file_obj):
         parent = file_obj['parents'][0]
         if parent['isRoot']:
-            return file_obj['title']
-
-        parent_id = parent['id']
-        return path.join(self._ids[parent_id], file_obj['title'])
+            rel_path = file_obj['title']
+        else:
+            parent_id = parent['id']
+            rel_path = path.join(self._ids[parent_id], file_obj['title'])
+        return path.join(self._root, rel_path)
 
     def _cache_path_id(self, file_obj):
         file_id = file_obj['id']
@@ -84,8 +88,8 @@ class GDriveConnector(DriveConnector):
         self._paths[parent_chain] = file_id
 
 
-"""dc = DriveConnector()
+dc = GDriveConnector("foobar")
 # dc.get_files("hacks")
 dc._collect_ids('0B42oFDXxUu3aUlZmLVpZaGFOMms')
 print dc._ids
-print dc._paths"""
+print dc._paths
