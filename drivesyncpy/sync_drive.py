@@ -1,7 +1,9 @@
 import sys
+from os.path import abspath
 
 import pyinotify
 
+from dirwalker import DirWalker
 from g_drive_connector import GDriveConnector
 
 
@@ -21,15 +23,16 @@ class UpSyncWatcher(pyinotify.ProcessEvent):
 
     def process_IN_CREATE(self, event):
         print("IN_CREATE {}".format(event))
+        file_path = event.pathname
         if event.dir:
-            self._wm.add_watch(event.pathname, INOTIFY_EVENT_MASK)
-            self._dc.upload_dir(event.pathname)
+            self._wm.add_watch(file_path, INOTIFY_EVENT_MASK)
+            self._dc.upload_dir(file_path)
         else:
-            self._dc.upload_file(event.pathname)
+            self._dc.upload_file(file_path)
 
     def process_IN_DELETE(self, event):
         print("IN_DELETE {}".format(event))
-        self._dc.delete_file(event.pathname)
+        # self._dc.delete_file(event.pathname)
 
     def process_IN_MOVED_FROM(self, event):
         print("MOVED FROM {}".format(event))
@@ -39,7 +42,7 @@ class UpSyncWatcher(pyinotify.ProcessEvent):
             print("MOVED TO: {} with {}".format(event.src_pathname, event))
         else:
             print("create new {}".format(event))
-            self._dc.upload_file(event.pathname)
+            # self._dc.upload_file(event.pathname)
 
     def process_default(self, event):
         print("Default Event: {}".format(event))
@@ -48,6 +51,8 @@ class UpSyncWatcher(pyinotify.ProcessEvent):
 def sync_drive(root_dir):
     wm = pyinotify.WatchManager()
     dc = GDriveConnector(root_dir)
+    walker = DirWalker(root_dir)
+    files = walker.paths
     event_handler = UpSyncWatcher(watch_manager=wm, drive_connector=dc)
 
     notifier = pyinotify.Notifier(wm, default_proc_fun=event_handler)
@@ -56,4 +61,5 @@ def sync_drive(root_dir):
 
 
 if __name__ == "__main__":
-    sync_drive(sys.argv[1])
+    root = abspath(sys.argv[1])
+    sync_drive(root)
