@@ -1,8 +1,15 @@
 from os import stat
 from stat import ST_CTIME
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 GOOGLE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+
+def convert_google_time(google_time):
+    dt_unawre = datetime.strptime(google_time, GOOGLE_TIME_FORMAT)
+    dt = dt_unawre.replace(tzinfo=timezone.utc)
+    delta = dt - datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return delta / timedelta(seconds=1)
 
 
 class _File(object):
@@ -28,7 +35,7 @@ class UpSyncDir(UpSyncFile):
 class DownSyncFile(_File):
     def __init__(self, path, last_mod, file_id):
         super(DownSyncFile, self).__init__(path)
-        self.last_modified = datetime.strptime(last_mod, GOOGLE_TIME_FORMAT)
+        self.last_modified = convert_google_time(last_mod)
         self.file_id = file_id
 
 

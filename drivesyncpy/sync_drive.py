@@ -52,14 +52,14 @@ def sync_drive(root_dir):
     wm = pyinotify.WatchManager()
     dc = GDriveConnector(root_dir)
     down_files = dc.paths
-    print down_files
+    print(down_files)
     walker = DirWalker(root_dir)
     up_files = walker.paths
-    print up_files
-    for path, handle in up_files.iteritems():
-        print "dir: ", path, "last mod:", handle.last_modified
+    print(up_files)
+    for path, handle in up_files.items():
+        print("dir: ", path, "last mod:", handle.last_modified)
         for f in handle.children:
-            print "file:", f.path, "last mod:", f.last_modified
+            print("file:", f.path, "last mod:", f.last_modified)
 
     event_handler = UpSyncWatcher(watch_manager=wm, drive_connector=dc)
 

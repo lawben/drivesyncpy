@@ -1,5 +1,5 @@
 from os import makedirs
-from Queue import Queue
+from queue import Queue
 from os.path import join, basename, dirname
 from collections import OrderedDict
 
@@ -61,7 +61,7 @@ class GDriveConnector(DriveConnector):
         param['fileId'] = file_obj['id']
         try:
             file_obj.auth.service.files().trash(**param).execute()
-        except Exception, e:
+        except Exception as e:
             raise Exception("Deleting error: {}".format(e))
 
     def _down_sync(self, root_folder='root'):
