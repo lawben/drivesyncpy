@@ -59,5 +59,8 @@ target/
 # Virtualenv
 venv/
 
+# PyCharm
+.idea
+
 # Google API
 credentials.json
