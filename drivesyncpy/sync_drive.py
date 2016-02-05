@@ -3,6 +3,7 @@ from os.path import abspath
 
 import pyinotify
 
+from util import merge_upload, merge_download
 from dirwalker import DirWalker
 from g_drive_connector import GDriveConnector
 
@@ -48,24 +49,38 @@ class UpSyncWatcher(pyinotify.ProcessEvent):
         print("Default Event: {}".format(event))
 
 
+def merge_systems(up_files, down_files, drive_connector):
+    foreign_files = merge_upload(up_files, down_files, drive_connector)
+    # print(foreign_files)
+    # merge_download(foreign_files, drive_connector)
+
+
 def sync_drive(root_dir):
     wm = pyinotify.WatchManager()
     dc = GDriveConnector(root_dir)
     down_files = dc.paths
-    print(down_files)
     walker = DirWalker(root_dir)
     up_files = walker.paths
-    print(up_files)
+    """print("DOWN:")
+    for path, handle in down_files.items():
+        if handle.is_dir:
+            print("dir: ", path, "last mod:", handle.last_modified)
+            for f in handle.children:
+                print("file:", f.path, "last mod:", f.last_modified)
+        else:
+            print("file:", f.path, "last mod:", f.last_modified)
+    print("\nUP:")
     for path, handle in up_files.items():
         print("dir: ", path, "last mod:", handle.last_modified)
         for f in handle.children:
-            print("file:", f.path, "last mod:", f.last_modified)
+            print("file:", f.path, "last mod:", f.last_modified)"""
+    merge_systems(up_files, down_files, dc)
 
     event_handler = UpSyncWatcher(watch_manager=wm, drive_connector=dc)
 
     notifier = pyinotify.Notifier(wm, default_proc_fun=event_handler)
     wm.add_watch(root_dir, INOTIFY_EVENT_MASK)
-    notifier.loop()
+    # notifier.loop()
 
 
 if __name__ == "__main__":

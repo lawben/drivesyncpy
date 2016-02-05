@@ -7,12 +7,11 @@ from pydrive.drive import GoogleDrive
 
 from util import DownSyncFile, DownSyncDir
 from drive_auth import get_google_auth
-from drive_connector import DriveConnector
 
 DRIVE_FOLDER = "application/vnd.google-apps.folder"
 
 
-class GDriveConnector(DriveConnector):
+class GDriveConnector:
     def __init__(self, root):
         self.paths = OrderedDict()
         self._gauth = get_google_auth()
@@ -25,12 +24,40 @@ class GDriveConnector(DriveConnector):
         self._down_sync()
         # print self._get_changes()
 
+    def upload(self, up_obj):
+        path = up_obj.path
+        if up_obj.is_dir:
+            self.upload_dir(path)
+        else:
+            self.upload_file(path)
+
+    def update(self, up_obj):
+        path = up_obj.path
+        if up_obj.is_dir:
+            pass
+        else:
+            # Change to update
+            self.upload_file(path)
+
+    def download(self, down_obj):
+        f_id = down_obj.file_id
+        if down_obj.is_dir:
+            self.download_dir(f_id)
+        else:
+            self.download_file(f_id)
+
+    def move(self, sync_obj):
+        pass
+
+    def delete(self, sync_obj):
+        pass
+
     def upload_file(self, file_path):
         file_obj = self._create_file(file_path)
-        file_obj.Upload()
+        self._cache_path(file_obj)
 
     def delete_file(self, file_path):
-        file_obj = self._file_by_id(self.paths[file_path])
+        file_obj = self._file_by_id(self.paths[file_path].file_id)
         self._trash_file(file_obj)
 
     def update_file(self, file_path):
@@ -47,12 +74,18 @@ class GDriveConnector(DriveConnector):
 
     def upload_dir(self, dir_path):
         file_obj = self._create_file(dir_path, is_dir=True)
+        print(file_obj, "was uploaded")
         file_obj.Upload()
+        self._cache_path(file_obj, is_dir=True)
+        print(file_obj.metadata)
 
     def download_dir(self, dir_id):
-        self._cache_path(self._file_by_id(dir_id))
+        self._cache_path(self._file_by_id(dir_id), is_dir=True)
         file_path = self._ids[dir_id]
-        makedirs(file_path)
+        try:
+            makedirs(file_path)
+        except OSError:
+            print("error while creating dir {}".format(file_path))
 
     def _trash_file(self, file_obj, param=None):
         # Temporary workaround until delete is merged
@@ -60,7 +93,7 @@ class GDriveConnector(DriveConnector):
             param = {}
         param['fileId'] = file_obj['id']
         try:
-            file_obj.auth.service.files().trash(**param).execute()
+            self._service.files().trash(**param).execute()
         except Exception as e:
             raise Exception("Deleting error: {}".format(e))
 
@@ -102,6 +135,7 @@ class GDriveConnector(DriveConnector):
             q = query.format(folder=folder)
             for f in self._query_folder_children(q):
                 folders.put(f)
+            return
 
     def _join_parent_chain(self, file_obj):
         # Catch root folder
@@ -114,8 +148,8 @@ class GDriveConnector(DriveConnector):
         if not parent['isRoot']:
             pre_path = self._ids[parent['id']]
 
-        # TODO: Fix '/' in file name BP N2 idealo/Learning Spark / Flink
-        title = file_obj['title'].replace("/", "\/")
+        # Fix '/' in file names, interpreted as folders
+        title = file_obj['title'].replace("/", "_")
         return join(pre_path, title)
 
     def _cache_path(self, file_obj, is_dir=False):
@@ -136,7 +170,12 @@ class GDriveConnector(DriveConnector):
 
     def _get_parent_metadata(self, file_path):
         parent_path = dirname(file_path)
-        parent = self.paths.get(parent_path, 'root')
+        try:
+            parent_obj = self.paths[parent_path]
+            parent = parent_obj.file_id
+        except KeyError:
+            parent = 'root'
+
         return {"parents": [{"kind": "drive#parentReference", "id": parent}]}
 
     def _create_file(self, file_path, is_dir=False):
