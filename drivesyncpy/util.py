@@ -1,38 +1,59 @@
-from os import stat
 from stat import ST_CTIME
+from os import stat, makedirs
 from datetime import datetime, timezone, timedelta
 
 GOOGLE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def convert_google_time(google_time):
-    dt_unawre = datetime.strptime(google_time, GOOGLE_TIME_FORMAT)
-    dt = dt_unawre.replace(tzinfo=timezone.utc)
+    dt_unaware = datetime.strptime(google_time, GOOGLE_TIME_FORMAT)
+    dt = dt_unaware.replace(tzinfo=timezone.utc)
     delta = dt - datetime(1970, 1, 1, tzinfo=timezone.utc)
     return delta // timedelta(seconds=1)
 
 
-def merge_upload(up_files, down_files, drive_connector):
+def flatten_paths(up_files):
+    dirs = list(up_files.items())
+    files = [(c.path, c) for _, f in up_files.items() for c in f.children]
+    return dirs + files
+
+
+def merge_upload(up_dirs, down_files, drive_connector):
+    up_files = flatten_paths(up_dirs)
     seen = set()
-    for path, up_f in up_files.items():
+    for path, up_f in up_files:
         if path in down_files:
             down_f = down_files[path]
             seen.add(down_f.path)
-            if up_f.is_newer(down_f):
-                print("Updating: {}".format(up_f))
-                drive_connector.update(up_f)
-            else:
-                print("Downloading: {}".format(up_f))
-                drive_connector.download(down_f)
+            chose_file(up_f, down_f, drive_connector)
         else:
             print("Uploading: {}".format(up_f))
             drive_connector.upload(up_f)
     return {key: val for key, val in down_files.items() if key not in seen}
 
 
+def chose_file(up_f, down_f, dc):
+    if up_f.is_newer(down_f):
+        print("Updating: {}".format(up_f))
+        dc.update(up_f)
+    else:
+        print("Downloading newer: {}".format(up_f))
+        dc.download(down_f)
+
+
 def merge_download(down_files, drive_connector):
     for path, down_f in down_files.items():
+        print("Downloading: {}".format(down_f))
         drive_connector.download(down_f)
+
+
+def make_dir(file_path):
+    try:
+        makedirs(file_path)
+    except FileExistsError:
+        pass
+    except OSError:
+        print("error while creating dir {}".format(file_path))
 
 
 class _File:
@@ -42,7 +63,7 @@ class _File:
         self.is_dir = False
 
     def is_newer(self, other_file):
-        return self.last_modified > other_file.last_modified
+        return self.last_modified >= other_file.last_modified
 
     def __str__(self):
         string = "<{}(path={}, last_mod={}, is_dir={})>"

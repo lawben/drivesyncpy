@@ -1,11 +1,11 @@
-from os import walk
+from os import walk as os_walk
 from os.path import join, relpath, abspath, basename
 from collections import OrderedDict
 
 from util import UpSyncFile, UpSyncDir
 
 
-class DirWalker(object):
+class DirWalker:
     def __init__(self, root_dir):
         self._root_dir = abspath(root_dir)
         self._rel_root = basename(root_dir)
@@ -15,7 +15,7 @@ class DirWalker(object):
     def walk(self):
         self.paths[self._rel_root] = UpSyncDir(self._rel_root)
 
-        for path, dirs, files in walk(self._root_dir):
+        for path, dirs, files in os_walk(self._root_dir):
             self._walk_dirs(path, dirs)
 
             parent_dir = self._relpath(path)

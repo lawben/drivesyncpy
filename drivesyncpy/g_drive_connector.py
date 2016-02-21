@@ -1,12 +1,13 @@
-from os import makedirs
+from re import findall
 from queue import Queue
 from os.path import join, basename, dirname
+from drive_auth import get_google_auth
 from collections import OrderedDict
 
 from pydrive.drive import GoogleDrive
+from pydrive.files import FileNotDownloadableError
 
-from util import DownSyncFile, DownSyncDir
-from drive_auth import get_google_auth
+from util import DownSyncFile, DownSyncDir, make_dir
 
 DRIVE_FOLDER = "application/vnd.google-apps.folder"
 
@@ -20,8 +21,8 @@ class GDriveConnector:
         self._root = root
         self._rel_root = basename(root)
         self._ids = {}
-        # self._down_sync('0B42oFDXxUu3aUlZmLVpZaGFOMms')
-        self._down_sync()
+        # self._walk_remote('0B42oFDXxUu3aUlZmLVpZaGFOMms')
+        self._walk_remote()
         # print self._get_changes()
 
     def upload(self, up_obj):
@@ -36,7 +37,7 @@ class GDriveConnector:
         if up_obj.is_dir:
             pass
         else:
-            # Change to update
+            # TODO: Change to update
             self.upload_file(path)
 
     def download(self, down_obj):
@@ -54,6 +55,7 @@ class GDriveConnector:
 
     def upload_file(self, file_path):
         file_obj = self._create_file(file_path)
+        file_obj.Upload()
         self._cache_path(file_obj)
 
     def delete_file(self, file_path):
@@ -70,22 +72,21 @@ class GDriveConnector:
         file_obj = self._file_by_id(file_id)
         self._cache_path(file_obj)
         file_path = self._ids[file_id]
-        file_obj.GetContentFile(file_path)
+        try:
+            file_obj.GetContentFile(file_path)
+        except FileNotDownloadableError:
+            if not self._download_best_match(file_obj, file_path):
+                raise
 
     def upload_dir(self, dir_path):
         file_obj = self._create_file(dir_path, is_dir=True)
-        print(file_obj, "was uploaded")
         file_obj.Upload()
         self._cache_path(file_obj, is_dir=True)
-        print(file_obj.metadata)
 
     def download_dir(self, dir_id):
         self._cache_path(self._file_by_id(dir_id), is_dir=True)
         file_path = self._ids[dir_id]
-        try:
-            makedirs(file_path)
-        except OSError:
-            print("error while creating dir {}".format(file_path))
+        make_dir(file_path)
 
     def _trash_file(self, file_obj, param=None):
         # Temporary workaround until delete is merged
@@ -97,11 +98,10 @@ class GDriveConnector:
         except Exception as e:
             raise Exception("Deleting error: {}".format(e))
 
-    def _down_sync(self, root_folder='root'):
+    def _walk_remote(self, root_folder='root'):
         folders = Queue()
         folders.put(root_folder)
 
-        # self.download_dir(root_folder)
         self._cache_path(self._file_by_id(root_folder), is_dir=True)
         self._traverse_files(folders)
         self._initialized = True
@@ -119,23 +119,23 @@ class GDriveConnector:
         for f in self._drive.ListFile({'q': query}).GetList():
             f_id = f['id']
             if f['mimeType'] == DRIVE_FOLDER:
-                # self.download_dir(f_id)
                 self._cache_path(f, is_dir=True)
                 yield f_id
             else:
-                # self.download_file(f_id)
                 self._cache_path(f)
-                pass
 
     def _traverse_files(self, folders):
         # TODO: get only own files, not shared
         query = "'{folder}' in parents and trashed=false"
+        count = 0
         while not folders.empty():
             folder = folders.get()
             q = query.format(folder=folder)
             for f in self._query_folder_children(q):
                 folders.put(f)
-            return
+            count += 1
+            if count == 2:
+                return
 
     def _join_parent_chain(self, file_obj):
         # Catch root folder
@@ -148,7 +148,6 @@ class GDriveConnector:
         if not parent['isRoot']:
             pre_path = self._ids[parent['id']]
 
-        # Fix '/' in file names, interpreted as folders
         title = file_obj['title'].replace("/", "_")
         return join(pre_path, title)
 
@@ -192,3 +191,29 @@ class GDriveConnector:
 
     def _file_by_id(self, file_id):
         return self._drive.CreateFile({'id': file_id})
+
+    def _download_best_match(self, file_obj, path):
+        mimetype = file_obj.metadata.get("mimeType")
+        export_links = file_obj.metadata.get("exportLinks")
+        best_match = [0, None]
+        for mt in export_links.keys():
+            match = self._calc_mimetype_similarity(mimetype, mt)
+            if match > best_match[0]:
+                best_match = [match, mt]
+
+        file_obj.metadata['downloadUrl'] = export_links[best_match[1]]
+        try:
+            file_obj.GetContentFile(path)
+            return True
+        except FileNotDownloadableError:
+            return False
+
+    def _calc_mimetype_similarity(self, mimetype, other):
+        mt_words = self._tokenize(mimetype)
+        other_words = self._tokenize(other)
+        same = len(mt_words.intersection(other_words))
+        total = len(mt_words.union(other_words))
+        return same / total
+
+    def _tokenize(self, string):
+        return set(findall(r'[\w]+', string))
