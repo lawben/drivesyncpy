@@ -27,7 +27,7 @@ class UpSyncWatcher(pyinotify.ProcessEvent):
     def process_IN_MODIFY(self, event):
         file_path = self._relpath(event.pathname)
         print("IN_MODIFY {}".format(file_path))
-        self._dc.upload_file(file_path)
+        self._dc.update_file(file_path)
 
     def process_IN_CREATE(self, event):
         file_path = self._relpath(event.pathname)
