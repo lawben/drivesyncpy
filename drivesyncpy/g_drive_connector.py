@@ -31,13 +31,12 @@ class GDriveConnector:
             self.upload_dir(path)
         else:
             self.upload_file(path)
-        print(self.paths)
 
     def update(self, up_obj):
         path = up_obj.path
         if not up_obj.is_dir:
             # TODO: Change to update
-            self.upload_file(path)
+            self.update_file(path)
 
     def download(self, down_obj):
         f_id = down_obj.file_id
@@ -62,7 +61,9 @@ class GDriveConnector:
         self._trash_file(file_obj)
 
     def update_file(self, file_path):
-        pass
+        file_obj = self._file_by_id(self.paths[file_path].file_id)
+        file_obj.SetContentFile(file_path)
+        file_obj.Upload()
 
     def move_file(self, file_path):
         pass
