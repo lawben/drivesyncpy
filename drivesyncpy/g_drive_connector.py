@@ -31,12 +31,11 @@ class GDriveConnector:
             self.upload_dir(path)
         else:
             self.upload_file(path)
+        print(self.paths)
 
     def update(self, up_obj):
         path = up_obj.path
-        if up_obj.is_dir:
-            pass
-        else:
+        if not up_obj.is_dir:
             # TODO: Change to update
             self.upload_file(path)
 
