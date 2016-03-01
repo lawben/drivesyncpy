@@ -1,21 +1,32 @@
 from os import path
 
-from pydrive.auth import GoogleAuth
+from pydrive.auth import GoogleAuth, AuthError
 
 
 SETTINGS_PATH = path.join(path.dirname(__file__), "oauth/settings.yaml")
 
 
 def get_google_auth():
-    gauth = GoogleAuth(settings_file=SETTINGS_PATH)
-    gauth.LoadCredentials()
+    tries = 0
+    while tries < 3:
+        g_auth = _authenticate()
+        if g_auth.service is not None:
+            return g_auth
+        tries += 1
 
-    if gauth.credentials is None:
-        gauth.LocalWebserverAuth()
-    elif gauth.access_token_expired:
-        gauth.Refresh()
+    raise AuthError("Could not authenticate after 3 tries!")
+
+
+def _authenticate():
+    g_auth = GoogleAuth(settings_file=SETTINGS_PATH)
+    g_auth.LoadCredentials()
+
+    if g_auth.credentials is None:
+        g_auth.LocalWebserverAuth()
+    elif g_auth.access_token_expired:
+        g_auth.Refresh()
     else:
-        gauth.Authorize()
+        g_auth.Authorize()
 
-    gauth.SaveCredentials()
-    return gauth
+    g_auth.SaveCredentials()
+    return g_auth
